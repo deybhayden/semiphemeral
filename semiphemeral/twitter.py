@@ -10,6 +10,11 @@ from zipfile import ZipFile
 from tweepy.models import Status
 from .db import Tweet, Thread
 
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst.; helper for 'unlike'"""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
 
 class Twitter(object):
     def __init__(self, common):
@@ -558,15 +563,11 @@ class Twitter(object):
         # Load tweets from db first
         click.secho("Loading tweets from database", fg="cyan")
         loaded_status_ids = []
-        for tweet in (
-            self.common.session.query(Tweet)
-            .filter(Tweet.status_id.in_(like_status_ids))
-            .order_by(Tweet.created_at.desc())
-            .all()
-        ):
-            if tweet.created_at < datetime_threshold:
-                all_tweets.append(tweet)
-            loaded_status_ids.append(tweet.status_id)
+        for i_like_ids in chunks(like_status_ids, 600):
+            for tweet in self.common.session.query(Tweet).filter(Tweet.status_id.in_(i_like_ids)).order_by(Tweet.created_at.desc()).all():
+                if tweet.created_at < datetime_threshold:
+                    all_tweets.append(tweet)
+                loaded_status_ids.append(tweet.status_id)
         click.secho("Loaded {} tweets from database".format(len(all_tweets)), fg="cyan")
 
         click.secho("Calculating tweets to fetch from the API", fg="cyan")
